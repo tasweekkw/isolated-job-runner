@@ -11,14 +11,18 @@ def main():
         with urllib.request.urlopen(req,timeout=20) as r:return json.load(r)
     j=get(state+'/contents/requests/'+rid+'.json');job=json.loads(base64.b64decode(j['content']))
     def mark(**fields):
-        try:
-            cur=get(state+'/contents/requests/'+rid+'.json')
-            doc=json.loads(base64.b64decode(cur['content']));doc.update(fields)
-            req=urllib.request.Request('https://api.github.com/repos/'+state+'/contents/requests/'+rid+'.json',
-                data=json.dumps({'message':'job marker','content':base64.b64encode(json.dumps(doc).encode()).decode(),'sha':cur['sha']}).encode(),
-                headers={'Authorization':'Bearer '+token,'User-Agent':'opaque-runner','Content-Type':'application/json'},method='PUT')
-            urllib.request.urlopen(req,timeout=20).read()
-        except Exception:pass
+        for _try in range(4):
+            try:
+                cur=get(state+'/contents/requests/'+rid+'.json')
+                doc=json.loads(base64.b64decode(cur['content']));doc.update(fields)
+                req=urllib.request.Request('https://api.github.com/repos/'+state+'/contents/requests/'+rid+'.json',
+                    data=json.dumps({'message':'job marker','content':base64.b64encode(json.dumps(doc).encode()).decode(),'sha':cur['sha']}).encode(),
+                    headers={'Authorization':'Bearer '+token,'User-Agent':'opaque-runner','Content-Type':'application/json'},method='PUT')
+                urllib.request.urlopen(req,timeout=20).read()
+                return
+            except Exception:
+                time.sleep(1.5)
+        print('Marker write failed. Job state unaffected.')
     mark(ack=int(time.time()))
     j=get(repo+'/contents/bot.py');code=base64.b64decode(j['content'])
     env=dict(os.environ);env.update({'GITHUB_REPOSITORY':repo,'DISPATCH_PAT':token,'GITHUB_TOKEN':token})
