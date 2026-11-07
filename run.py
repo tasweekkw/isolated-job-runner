@@ -1,5 +1,5 @@
 """Opaque-request runner. Inputs, code and outputs are private. No task data is logged."""
-import os,sys,json,base64,urllib.request,tempfile,subprocess
+import os,sys,json,base64,urllib.request,tempfile,subprocess,time
 
 def main():
     token=os.environ['ACCESS_TOKEN'];repo=os.environ['PRIVATE_CODE_REPO'];state=os.environ['PRIVATE_STATE_REPO']
@@ -10,6 +10,16 @@ def main():
         req=urllib.request.Request('https://api.github.com/repos/'+path,headers={'Authorization':'Bearer '+token,'User-Agent':'opaque-runner'})
         with urllib.request.urlopen(req,timeout=20) as r:return json.load(r)
     j=get(state+'/contents/requests/'+rid+'.json');job=json.loads(base64.b64decode(j['content']))
+    def mark(**fields):
+        try:
+            cur=get(state+'/contents/requests/'+rid+'.json')
+            doc=json.loads(base64.b64decode(cur['content']));doc.update(fields)
+            req=urllib.request.Request('https://api.github.com/repos/'+state+'/contents/requests/'+rid+'.json',
+                data=json.dumps({'message':'job marker','content':base64.b64encode(json.dumps(doc).encode()).decode(),'sha':cur['sha']}).encode(),
+                headers={'Authorization':'Bearer '+token,'User-Agent':'opaque-runner','Content-Type':'application/json'},method='PUT')
+            urllib.request.urlopen(req,timeout=20).read()
+        except Exception:pass
+    mark(ack=int(time.time()))
     j=get(repo+'/contents/bot.py');code=base64.b64decode(j['content'])
     env=dict(os.environ);env.update({'GITHUB_REPOSITORY':repo,'DISPATCH_PAT':token,'GITHUB_TOKEN':token})
     for key in ('kind','text','chat_id','msg_id','research_err'):env['JOB_'+key.upper()]=str(job.get(key,''))
@@ -19,6 +29,7 @@ def main():
         with open(os.devnull,'wb') as sink:
             result=subprocess.run([sys.executable,path],cwd=d,env=env,stdout=sink,stderr=sink,timeout=450)
     # Never print subprocess output or exceptions. Status stays generic.
+    mark(done=int(time.time()), ok=(result.returncode==0))
     print('Job completed.' if result.returncode==0 else 'Job failed. Details remain private.')
     return result.returncode
 if __name__=='__main__':
