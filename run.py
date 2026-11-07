@@ -26,8 +26,9 @@ def main():
     mark(ack=int(time.time()))
     j=get(repo+'/contents/bot.py');code=base64.b64decode(j['content'])
     env=dict(os.environ);env.update({'GITHUB_REPOSITORY':repo,'DISPATCH_PAT':token,'GITHUB_TOKEN':token})
-    for key in ('kind','text','chat_id','msg_id','research_err'):env['JOB_'+key.upper()]=str(job.get(key,''))
+    for key in ('kind','text','chat_id','msg_id','research_err','lead_err'):env['JOB_'+key.upper()]=str(job.get(key,''))
     env['JOB_RESEARCH_HITS']=json.dumps(job.get('research_hits') or [])
+    env['JOB_LEAD_HITS']=json.dumps(job.get('lead_hits') or [])
     with tempfile.TemporaryDirectory() as d:
         path=os.path.join(d,'job.py');open(path,'wb').write(code)
         with open(os.devnull,'wb') as sink:
